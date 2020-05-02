@@ -17,40 +17,63 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # ------------------------------------------------------------------------------------------------
 
-cmake_minimum_required( VERSION 2.8 )
+cmake_minimum_required( VERSION 3.8 )
 
 project( Malmo )
 
 # -------------------- Options --------------------------------
 
-set( MALMO_VERSION_MAJOR 0)
-set( MALMO_VERSION_MINOR 15)
-set( MALMO_VERSION_REVISION 0)
+file( STRINGS "VERSION" MALMO_VERSION_FILE )
+string( REPLACE "." ";" MALMO_VERSION_LIST ${MALMO_VERSION_FILE} )
+list( GET MALMO_VERSION_LIST 0 MALMO_VERSION_MAJOR )
+list( GET MALMO_VERSION_LIST 1 MALMO_VERSION_MINOR )
+list( GET MALMO_VERSION_LIST 2 MALMO_VERSION_REVISION )
 set( MALMO_VERSION ${MALMO_VERSION_MAJOR}.${MALMO_VERSION_MINOR}.${MALMO_VERSION_REVISION} )
-# N.B. Check that this version number matches the one in Minecraft/src/main/java/com/microsoft/Malmo/MalmoMod.java
+
+message("Configure MALMO_VERSION at ${MALMO_VERSION}")
+
+# N.B. Check that this version number matches the ones in the schemas.
 
 set( BUILD_MOD_DESC           "Specifies whether to build the Malmo Minecraft Mod" )
 set( BUILD_DOCUMENTATION_DESC "Specifies whether to build the documentation for the API and XML" )
 set( INCLUDE_ALE_DESC         "Specifies whether to build Malmo with bindings to the Arcade Learning Environment" )
 set( INCLUDE_CSHARP_DESC      "Specifies whether to build Malmo with C# bindings" )
 set( INCLUDE_JAVA_DESC        "Specifies whether to build Malmo with Java bindings" )
-set( INCLUDE_LUA_DESC         "Specifies whether to build Malmo with Lua bindings (Linux only)" )
 set( INCLUDE_PYTHON_DESC      "Specifies whether to build Malmo with Python bindings" )
-set( INCLUDE_TORCH_DESC       "Specifies whether to build Malmo with Torch bindings (Linux only)" )
+set( STATIC_BOOST_DESC        "Specifies whether to link Malmo statically against Boost" )
 set( BUILD_MOD           ON  CACHE BOOL ${BUILD_MOD_DESC} )
 set( BUILD_DOCUMENTATION ON  CACHE BOOL ${BUILD_DOCUMENTATION_DESC} )
 set( INCLUDE_ALE         OFF CACHE BOOL ${INCLUDE_ALE_DESC} )
 set( INCLUDE_CSHARP      ON  CACHE BOOL ${INCLUDE_CSHARP_DESC} )
 set( INCLUDE_JAVA        ON  CACHE BOOL ${INCLUDE_JAVA_DESC} )
 set( INCLUDE_PYTHON      ON  CACHE BOOL ${INCLUDE_PYTHON_DESC} )
-if( UNIX AND NOT APPLE )
-  set( INCLUDE_LUA       ON  CACHE BOOL ${INCLUDE_LUA_DESC} )
-  set( INCLUDE_TORCH     ON  CACHE BOOL ${INCLUDE_TORCH_DESC} )
-else()
-  # Lua and Torch not currently supported
-  set( INCLUDE_LUA       OFF CACHE BOOL ${INCLUDE_LUA_DESC} )
-  set( INCLUDE_TORCH     OFF CACHE BOOL ${INCLUDE_TORCH_DESC} )
+set( STATIC_BOOST        ON CACHE BOOL ${STATIC_BOOST_DESC} )
+
+if( INCLUDE_PYTHON )
+  set( USE_PYTHON_VERSIONS_DESC "Specifies which version of Python to build Malmo with Python bindings" )
+  set( USE_PYTHON_VERSIONS 3.6 CACHE STRING ${USE_PYTHON_VERSIONS_DESC} )
+  if (NOT BOOST_PYTHON_NAME)
+    message("The name of the Boost Python library has not been set - trying to
+    determine it automatically...")
+    set(BOOST_PYTHON_NAME_DESC "Specifies which Boost Python module to build Malmo with" )
+
+    if (Boost_VERSION VERSION_GREATER 1.67 )
+      # From version 1.67 and up, Boost appends the Python version number to
+      # the library name by default.
+      # (https://www.boost.org/users/history/version_1_67_0.html)
+      execute_process(
+        COMMAND python3 -c "import sys; print('python' + str(sys.version_info[0]) + str(sys.version_info[1]), end='')" 
+        OUTPUT_VARIABLE BOOST_PYTHON_NAME
+      )
+    else()
+      set (BOOST_PYTHON_NAME "python")
+    endif()
+    message("BOOST_PYTHON_NAME set to ${BOOST_PYTHON_NAME}. To override it, add
+    the flag -DBOOST_PYTHON_NAME=<name> where <name> is the name of the Boost
+    Python library on your system (see https://github.com/boostorg/build/pull/250).")
+  endif()
 endif()
+
 set( WARNINGS_AS_ERRORS OFF )
 
 # ------------------- Detect the system -----------------------
@@ -68,10 +91,14 @@ elseif( UNIX )
   elseif( EXISTS "/etc/debian_version")
     file( READ /etc/debian_version DEBIAN_VERSION )
     set( SYSTEM_NAME "${SYSTEM_NAME}-${DEBIAN_VERSION}")
+  elseif( EXISTS "/etc/os-release")
+    execute_process(COMMAND "sed" "-ne" "s/^ID=\"\\?\\([a-z]\\+\\)\"\\?$/\\1/p" "/etc/os-release" OUTPUT_VARIABLE OS_RELEASE_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process(COMMAND "sed" "-ne" "s/^VERSION_ID=\"\\?\\([0-9\\.]\\+\\)\"\\?$/\\1/p" "/etc/os-release" OUTPUT_VARIABLE OS_RELEASE_VERSION_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set( SYSTEM_NAME "${SYSTEM_NAME}-${OS_RELEASE_ID}-${OS_RELEASE_VERSION_ID}")
   elseif( EXISTS "/etc/redhat-release")
     set( SYSTEM_NAME "${SYSTEM_NAME}-Redhat")
   endif()
-elseif( WIN32)
+elseif( WIN32 )
   set( SYSTEM_NAME "Windows" )
 endif()
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
@@ -81,33 +108,57 @@ else()
 endif()
 
 # -------------------- Find packages --------------------------
+
+if ( WIN32 )
+    enable_language( CSharp )
+else()
+    set( INCLUDE_CSHARP OFF )
+endif()
+
 set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
-SET(Boost_ADDITIONAL_VERSIONS "1.59" "1.59.0")
-SET(Boost_ADDITIONAL_VERSIONS "1.60" "1.60.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.65" "1.65.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.66" "1.66.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.68" "1.68.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.69" "1.69.0")
+SET(Boost_ADDITIONAL_VERSIONS "1.70" "1.70.0")
+
+# Boost release variant builds have symbol visibility set to hidden by default 
+# (https://boostorg.github.io/build/manual/develop/index.html#bbv2.overview.builtins.features)
+# The line below adds compilation flags to make the visibility settings for compiling Malmo
+# consistent with the visibility settings for Boost, and fixes linking warnings emitted by the
+# GCC 9 compiler.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
+
+# This allows users to override the Boost Python library name if different from
+# the defaults (this can occur with certain package managers - e.g. For Boost compiled against Python 3.6,
+# MacPorts would name the Boost Python library as libboost_python3 instead of libboost_python36).
+
+
 if( WIN32 )
-  set( Boost_USE_STATIC_LIBS ON )
-  find_package( Boost COMPONENTS chrono date_time filesystem iostreams program_options python regex system thread zlib REQUIRED )
+  SET(Boost_USE_STATIC_LIBS ON)
+  find_package( Boost COMPONENTS chrono date_time filesystem iostreams program_options ${BOOST_PYTHON_NAME} regex system thread REQUIRED )
+  add_definitions(-DBOOST_ALL_NO_LIB=1)  # Turn off auto-linking, creates problems when linking boost statically
 else()
-  find_package( Boost COMPONENTS chrono date_time filesystem iostreams program_options python regex system thread REQUIRED )
+  SET(Boost_USE_STATIC_LIBS ${STATIC_BOOST})
+  find_package( Boost COMPONENTS chrono date_time filesystem iostreams program_options ${BOOST_PYTHON_NAME} regex system thread REQUIRED )
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   find_package( Threads REQUIRED )
 endif()
 
 # suggested install paths - see readme.md
-if( WIN32)
-  set( XSD_ROOT "C:/Program Files (x86)/CodeSynthesis XSD 4.0" )
-else()
+if( NOT WIN32)
   set( ALE_ROOT_DIR ~/ALE )
 endif()
 
 if( INCLUDE_CSHARP )
+  # Select the .NET architecture
   if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
     set( CSHARP_PLATFORM "x64" CACHE STRING "C# target platform: x86, x64, anycpu, or itanium")
   else()
     set( CSHARP_PLATFORM "x86" CACHE STRING "C# target platform: x86, x64, anycpu, or itanium")
   endif()
-  find_package( CSharp REQUIRED )
 endif()
 
 if( BUILD_DOCUMENTATION )
@@ -115,39 +166,23 @@ if( BUILD_DOCUMENTATION )
 endif()
 
 find_package( Git REQUIRED )
-find_package( Java REQUIRED COMPONENTS Runtime Development ) 
+find_package( ZLIB REQUIRED )
+
+if ( INCLUDE_JAVA OR BUILD_MOD )
+   find_package( Java REQUIRED COMPONENTS Runtime Development ) 
+endif()
 
 if( INCLUDE_JAVA )
   find_package( JNI REQUIRED) 
 endif()
 
 if( INCLUDE_PYTHON )
-  find_package( PythonInterp 2.7 REQUIRED )
-  find_package( PythonLibs 2.7 REQUIRED )
+  set( Python_ADDITIONAL_VERSIONS ${USE_PYTHON_VERSIONS} )
+  find_package( PythonInterp ${USE_PYTHON_VERSIONS} REQUIRED )
+  find_package( PythonLibs ${USE_PYTHON_VERSIONS} REQUIRED )
 endif()
 
 find_package( SWIG REQUIRED )
-find_package( Xsd REQUIRED )
-
-if( INCLUDE_LUA )
-  set( LUABIND_ROOT_DIR ~/rpavlik-luabind/build/src )
-  find_package( Luabind REQUIRED )
-else()
-  set( INCLUDE_TORCH OFF CACHE BOOL ${INCLUDE_TORCH_DESC} FORCE ) # (can't build for Torch without Lua)
-endif()
-
-if( INCLUDE_TORCH )
-  find_package( Torch QUIET HINTS ~/torch/install/share/cmake/torch ) 
-  if( NOT Torch_FOUND )
-    # for now Torch is only available on Ubuntu and a few other platforms, so we warn but continue
-    message( "" )
-    message( " ====   WARNING: ====" )
-    message( "" )
-    message( " Torch was not found! Build will proceed but without the Torch parts included." )
-    message( "" )
-    set( INCLUDE_TORCH OFF CACHE BOOL ${INCLUDE_TORCH_DESC} FORCE )
-  endif()
-endif()
 
 if( INCLUDE_ALE )
   find_package(ALE QUIET)
@@ -174,7 +209,6 @@ endif ()
  
 if( MSVC )
   set( MALMO_PYTHON_DIR ${CMAKE_BINARY_DIR}/Malmo/src/PythonWrapper/$<CONFIG> )
-  set( MALMO_LUA_DIR ${CMAKE_BINARY_DIR}/Malmo/src/LuaWrapper/$<CONFIG> )
   set( MALMO_CSHARP_DIR ${CMAKE_BINARY_DIR}/Malmo/src/CSharpWrapper/$<CONFIG> )
   if( WARNINGS_AS_ERRORS )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX" )
@@ -184,7 +218,6 @@ if( MSVC )
   set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS" )
 else()
   set( MALMO_PYTHON_DIR ${CMAKE_BINARY_DIR}/Malmo/src/PythonWrapper )
-  set( MALMO_LUA_DIR ${CMAKE_BINARY_DIR}/Malmo/src/LuaWrapper )
   set( MALMO_CSHARP_DIR ${CMAKE_BINARY_DIR}/Malmo/src/CSharpWrapper )
   set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
   if( WARNINGS_AS_ERRORS )
@@ -230,15 +263,24 @@ if( BUILD_DOCUMENTATION )
   add_subdirectory( doc )
 endif()
 add_subdirectory( Schemas )
+add_subdirectory( scripts )
 add_subdirectory( sample_missions )
 if( INCLUDE_ALE )
   add_subdirectory( ALE_ROMS )
 endif()
 
+# Save a small properties file, so we can easily tell what version of python this was built against, etc.
+configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/malmo.properties malmo.properties )
+INSTALL( FILES ${CMAKE_BINARY_DIR}/malmo.properties DESTINATION .)
+
 # -------------------- Package ------------------------------------
 if( INCLUDE_ALE )
   set( SYSTEM_NAME "${SYSTEM_NAME}_withALE" )
 endif()
+if ( STATIC_BOOST )
+  set( SYSTEM_NAME "${SYSTEM_NAME}_withBoost" )
+endif()
+set( SYSTEM_NAME "${SYSTEM_NAME}_Python${USE_PYTHON_VERSIONS}" )
 set( CPACK_SYSTEM_NAME ${SYSTEM_NAME} )
 set( CPACK_PACKAGE_VERSION "${MALMO_VERSION}" )
 set( CPACK_GENERATOR "ZIP" )

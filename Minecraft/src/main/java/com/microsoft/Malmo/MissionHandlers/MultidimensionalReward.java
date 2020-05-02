@@ -35,6 +35,16 @@ import com.microsoft.Malmo.Utils.SchemaHelper;
 public class MultidimensionalReward {
 
     private Map<Integer, Float> map = new HashMap<Integer, Float>();
+    private boolean isFinalReward = false;
+
+    public MultidimensionalReward()
+    {
+    }
+
+    public MultidimensionalReward(boolean isFinalReward)
+    {
+        this.isFinalReward = isFinalReward;
+    }
 
     /**
      * True if no rewards have been received.
@@ -43,6 +53,10 @@ public class MultidimensionalReward {
      */
     public boolean isEmpty() {
         return this.map.isEmpty();
+    }
+
+    public boolean isFinalReward() {
+        return this.isFinalReward;
     }
 
     /**
@@ -97,7 +111,7 @@ public class MultidimensionalReward {
      * 
      * @return the XML string.
      */
-    public String getAsString() {
+    public String getAsXMLString() {
         // Create a string XML representation:
         String rewardString = null;
         try {
@@ -106,6 +120,37 @@ public class MultidimensionalReward {
             System.out.println("Caught reward serialization exception: " + e);
         }
         return rewardString;
+    }
+
+    /**
+     * Gets the reward structure as a simple, easily parsed string<br>
+     * Format: <dimension>:<value>, comma delimited.
+     * eg "0:45.6,1:32.2,12:-1.0" etc
+     * 
+     * @return the string.
+     */
+    public String getAsSimpleString() {
+        String rewardString = "";
+        for (Map.Entry<Integer, Float> entry : this.map.entrySet()) {
+            Integer dimension = entry.getKey();
+            Float reward_value = entry.getValue();
+            if (!rewardString.isEmpty())
+                rewardString += ",";
+            rewardString += dimension + ":" + reward_value;
+        }
+        return rewardString;
+    }
+
+    /**
+     * Get the total rewards from all dimensions, each of which may be positive or negative.
+     * @return The total rewards.
+     */
+    public double getRewardTotal() {
+        double rewards = 0.0;
+        for (Map.Entry<Integer, Float> entry : this.map.entrySet()) {
+            rewards += entry.getValue();
+        }
+        return rewards;
     }
 
     /**

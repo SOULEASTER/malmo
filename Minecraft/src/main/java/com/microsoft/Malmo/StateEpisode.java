@@ -21,7 +21,6 @@ package com.microsoft.Malmo;
 
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.world.ChunkEvent;
-import net.minecraftforge.event.world.WorldEvent.PotentialSpawns;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent.OnConfigChangedEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
@@ -48,18 +47,15 @@ public abstract class StateEpisode
     
     /** Called to kick off the episode - should be no need for subclasses to override.
      */
-    public void start()
-    {
+    public void start() {
         this.isLive = true; // This episode is now active.
-        try
-        {
-			execute();
-		}
-        catch (Exception e)
-        {
-        	System.out.println(e);
-        	// TODO... what?
-		}
+        try {
+            execute();
+        } catch (Exception e) {
+            System.out.println("State start - exception: " + e);
+            e.printStackTrace();
+            // TODO... what?
+        }
     }
 
 	/** Called after the episode has been retired - use this to clean up any resources.
@@ -106,6 +102,4 @@ public abstract class StateEpisode
     protected void onConfigChanged(OnConfigChangedEvent event) {}
     /** Subclass should override this to act when the player joins the server.*/
     protected void onPlayerJoinedServer(PlayerLoggedInEvent event) {}
-    /** Subclass should override this to control spawning logic.*/
-    protected void onGetPotentialSpawns(PotentialSpawns ps) {}
 }

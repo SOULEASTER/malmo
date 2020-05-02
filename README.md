@@ -2,10 +2,36 @@
 
 Project Malmö is a platform for Artificial Intelligence experimentation and research built on top of Minecraft. We aim to inspire a new generation of research into challenging new problems presented by this unique environment.
 
-[![Join the chat at https://gitter.im/Microsoft/malmo](https://badges.gitter.im/Microsoft/malmo.svg)](https://gitter.im/Microsoft/malmo?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/Microsoft/malmo.svg?branch=master)](https://travis-ci.org/Microsoft/malmo)
+[![Join the chat at https://gitter.im/Microsoft/malmo](https://badges.gitter.im/Microsoft/malmo.svg)](https://gitter.im/Microsoft/malmo?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/Microsoft/malmo.svg?branch=master)](https://travis-ci.org/Microsoft/malmo) [![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/Microsoft/malmo/blob/master/LICENSE.txt)
 ----
     
 ## Getting Started ##
+
+### MalmoEnv ###
+
+MalmoEnv implements an Open AI "gym"-like environment in Python without any native code (communicating directly with Java Minecraft). If you only need this functionallity then please see [MalmoEnv](https://github.com/Microsoft/malmo/tree/master/MalmoEnv). This will most likely be the preferred way to develop with Malmo Minecraft going forward.
+
+If you wish to use the "native" Malmo implementation, either install the "Malmo native Python wheel" (if available for your platform) or a pre-built binary release (more on these options below). Building Malmo yourself from source is always an option!
+
+Advantages:
+    
+1. No native code - you don't have to build or install platform dependent code.
+2. A single network connection is used to run missions. No dynamic ports means it's more virtualization friendly.
+3. A simpler multi-agent coordination protocol. 
+One Minecraft client instance, one single port is used to start missions.
+4. Less impedance miss-match with the gym api.
+
+Disadvantages:
+
+1. The existing Malmo examples are not supported (as API used is different). 
+Marlo envs should work with this [port](https://github.com/AndKram/marLo/tree/malmoenv).
+2. The API is more limited (e.g. selecting video options) - can edit mission xml directly.
+
+### Malmo as a native Python wheel ###
+
+On common Windows, MacOSX and Linux variants it is possible to use ```pip3 install malmo``` to install Malmo as a python with native code package: [Pip install for Malmo](https://github.com/Microsoft/malmo/blob/master/scripts/python-wheel/README.md). Once installed, the malmo Python module can be used to download source and examples and start up Minecraft with the Malmo game mod. 
+
+Alternatively, a pre-built version of Malmo can be installed as follows:
 
 1. [Download the latest *pre-built* version, for Windows, Linux or MacOSX.](https://github.com/Microsoft/malmo/releases)   
       NOTE: This is _not_ the same as downloading a zip of the source from Github. _Doing this **will not work** unless you are planning to build the source code yourself (which is a lengthier process). If you get errors along the lines of "`ImportError: No module named MalmoPython`" it will probably be because you have made this mistake._
@@ -14,11 +40,13 @@ Project Malmö is a platform for Artificial Intelligence experimentation and res
 
 3. Launch Minecraft with our Mod installed. Instructions below.
 
-4. Launch one of our sample agents, as Python, Lua, C#, C++ or Java. Instructions below.
+4. Launch one of our sample agents, as Python, C#, C++ or Java. Instructions below.
 
 5. Follow the [Tutorial](https://github.com/Microsoft/malmo/blob/master/Malmo/samples/Python_examples/Tutorial.pdf) 
 
 6. Explore the [Documentation](http://microsoft.github.io/malmo/). This is also available in the readme.html in the release zip.
+
+7. Read the [Blog](http://microsoft.github.io/malmo/blog) for more information.
 
 If you want to build from source then see the build instructions for your OS: [Windows](doc/build_windows.md), [Linux](doc/build_linux.md), [MacOSX](doc/build_macosx.md).
 
@@ -62,24 +90,8 @@ a machine for network use these TCP ports should be open.
 
 ```
 cd Python_Examples
-python run_mission.py
-```
-
-On MacOSX we currently only support the system python, so please use `/usr/bin/python run_mission.py` if not the default. 
-
-#### Running a Lua agent: (Linux only) ####
-
-```
-cd Lua_Examples
-lua run_mission.lua
-```
-
-#### Running a Torch agent: (Linux only) ####
-
-```
-cd Torch_Examples
-th run_mission.lua
-```
+python3 run_mission.py
+``` 
 
 #### Running a C++ agent: ####
 
@@ -99,13 +111,12 @@ To build the sample yourself:
 
 #### Running a C# agent: ####
 
-To run the pre-built sample:
+To run the pre-built sample (on Windows):
 
 `cd CSharp_Examples`  
-`CSharpExamples_RunMission.exe` (on Windows)  
-`mono CSharpExamples_RunMission.exe` (on Linux or MacOSX)
+`CSharpExamples_RunMission.exe`
 
-To build the sample yourself, open CSharp_Examples/RunMission.csproj in Visual Studio or MonoDevelop.
+To build the sample yourself, open CSharp_Examples/RunMission.csproj in Visual Studio.
 
 Or from the command-line:
 
@@ -115,12 +126,6 @@ Then, on Windows:
 ```
 msbuild RunMission.csproj /p:Platform=x64
 bin\x64\Debug\CSharpExamples_RunMission.exe
-```
-
-On Linux or MacOSX:  
-```
-xbuild RunMission.csproj /p:Platform=x64
-mono bin/x64/Debug/CSharpExamples_RunMission.exe
 ```
 
 #### Running a Java agent: ####
@@ -133,8 +138,16 @@ mono bin/x64/Debug/CSharpExamples_RunMission.exe
 
 ```
 cd Python_Examples
-python ALE_HAC.py
+python3 ALE_HAC.py
 ```
+
+----
+
+# Citations #
+
+Please cite Malmo as:
+
+Johnson M., Hofmann K., Hutton T., Bignell D. (2016) [_The Malmo Platform for Artificial Intelligence Experimentation._](http://www.ijcai.org/Proceedings/16/Papers/643.pdf) [Proc. 25th International Joint Conference on Artificial Intelligence](http://www.ijcai.org/Proceedings/2016), Ed. Kambhampati S., p. 4246. AAAI Press, Palo Alto, California USA. https://github.com/Microsoft/malmo
 
 ----
 

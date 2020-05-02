@@ -36,108 +36,106 @@
 namespace malmo
 {
     MissionRecordSpec::MissionRecordSpec()
-        : is_recording(false)
-        , is_recording_mp4(false)
-        , is_recording_observations(false)
+        : is_recording_observations(false)
         , is_recording_rewards(false)
         , is_recording_commands(false)
-        , mp4_bit_rate(0)
-        , mp4_fps(0)
     {
     }
 
     MissionRecordSpec::MissionRecordSpec(std::string destination)
-        : is_recording(true)
-        , is_recording_mp4(false)
-        , is_recording_observations(false)
+        : is_recording_observations(false)
         , is_recording_rewards(false)
         , is_recording_commands(false)
-        , mp4_bit_rate(0)
-        , mp4_fps(0)
-        , destination(destination)
     {
-        boost::uuids::random_generator gen;
-        boost::uuids::uuid temp_uuid = gen();
-        this->temp_dir = boost::filesystem::path(".");
-        this->temp_dir = this->temp_dir / "mission_records" / boost::uuids::to_string(temp_uuid);
-        this->mp4_path = (this->temp_dir / "video.mp4").string();
-        this->observations_path = (this->temp_dir / "observations.txt").string();
-        this->rewards_path = (this->temp_dir / "rewards.txt").string();
-        this->commands_path = (this->temp_dir / "commands.txt").string();
-        this->mission_init_path = (this->temp_dir / "missionInit.xml").string();
- 
-        std::ofstream file(destination, std::ofstream::binary);
+        setDestination(destination);
+    }
+
+    void MissionRecordSpec::setDestination(const std::string& destination)
+    {
+        boost::filesystem::path filepath = boost::filesystem::absolute(destination);
+        std::ofstream file(filepath.string(), std::ofstream::binary);
         if (file.fail()) {
-           std::cout << "ERROR: Cannot write to " << destination << " - check the path exists and you have permission to write there." << std::endl;
-           throw std::runtime_error("Can not write to recording destination.");
-       }
+            std::cout << "ERROR: Cannot write to " << filepath.string() << " - check the path exists and you have permission to write there." << std::endl;
+            throw std::runtime_error("Can not write to recording destination.");
+        }
+        this->destination = filepath.string();
     }
 
     void MissionRecordSpec::recordMP4(int frames_per_second, int64_t bit_rate)
     {
-        if (!this->is_recording){
-            throw std::runtime_error("Mission is not being recorded.");
+        // Set spec for all video producers:
+        this->video_recordings.clear();
+        for (int ftype = TimestampedVideoFrame::_MIN_FRAME_TYPE; ftype < TimestampedVideoFrame::_MAX_FRAME_TYPE; ftype++)
+        {
+            FrameRecordingSpec fspec;
+            fspec.fr_type = VIDEO;
+            fspec.mp4_bit_rate = bit_rate;
+            fspec.mp4_fps = frames_per_second;
+            fspec.drop_input_frames = true; // nasty behaviour, but preserved for backwards compatibility
+            this->video_recordings[(TimestampedVideoFrame::FrameType)ftype] = fspec;
         }
+    }
 
-        this->is_recording_mp4 = true;
-        this->mp4_fps = frames_per_second;
-        this->mp4_bit_rate = bit_rate;
+    void MissionRecordSpec::recordMP4(TimestampedVideoFrame::FrameType type, int frames_per_second, int64_t bit_rate, bool drop_input_frames)
+    {
+        FrameRecordingSpec fspec;
+        fspec.fr_type = VIDEO;
+        fspec.mp4_bit_rate = bit_rate;
+        fspec.mp4_fps = frames_per_second;
+        fspec.drop_input_frames = drop_input_frames;
+        this->video_recordings[type] = fspec;
+    }
+
+    void MissionRecordSpec::recordBitmaps(TimestampedVideoFrame::FrameType type)
+    {
+        FrameRecordingSpec fspec;
+        fspec.fr_type = BMP;
+        this->video_recordings[type] = fspec;
     }
 
     void MissionRecordSpec::recordObservations()
     {
-        if (!this->is_recording){
-            throw std::runtime_error("Mission is not being recorded.");
-        }
-
         this->is_recording_observations = true;
     }
 
     void MissionRecordSpec::recordRewards()
     {
-        if (!this->is_recording){
-            throw std::runtime_error("Mission is not being recorded.");
-        }
-
         this->is_recording_rewards = true;
     }
 
     void MissionRecordSpec::recordCommands()
     {
-        if (!this->is_recording){
-            throw std::runtime_error("Mission is not being recorded.");
-        }
-
         this->is_recording_commands = true;
     }
 
-    std::string MissionRecordSpec::getTemporaryDirectory()
+    bool MissionRecordSpec::isRecording() const
     {
-        if (!this->is_recording){
-            throw std::runtime_error("Mission is not being recorded.");
-        }
-
-        if (boost::filesystem::exists(this->temp_dir)){
-            return this->temp_dir.string();
-        }else{
-            throw std::runtime_error("Mission record does not yet exist. Temporary directory will be created once a mission has begun.");
-        }
+        return !this->destination.empty()
+            && (this->is_recording_commands
+            || this->video_recordings.size()
+            || this->is_recording_rewards
+            || this->is_recording_observations);
     }
 
     std::ostream& operator<<(std::ostream& os, const MissionRecordSpec& msp)
     {
         os << "MissionRecordSpec: ";
-        os << "Recording? " << (msp.is_recording ? "Yes" : "No");
-        if (msp.is_recording_mp4)
-            os << "\n  -MP4 (bitrate: " << msp.mp4_bit_rate << ", fps: " << msp.mp4_fps << ")";
         if (msp.is_recording_observations)
             os << "\n  -observations";
         if (msp.is_recording_rewards)
             os << "\n  -rewards";
         if (msp.is_recording_commands)
             os << "\n  -commands";
+        for (auto r : msp.video_recordings)
+        {
+            os << "\n  -" << r.first << ": ";
+            os << (r.second.fr_type == MissionRecordSpec::BMP ? "bitmaps" : "mp4");
+            if (r.second.fr_type == MissionRecordSpec::VIDEO)
+                os << " (bitrate: " << r.second.mp4_bit_rate << ", fps: " << r.second.mp4_fps << ")";
+        }
         if (msp.destination.length())
             os << "\n to: " << msp.destination;
+
         return os;
     }
 }

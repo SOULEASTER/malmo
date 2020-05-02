@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import java.util.List;
 
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -71,10 +72,21 @@ public class SimpleCraftCommandsImplementation extends CommandBase
         public IMessage onMessage(CraftMessage message, MessageContext ctx)
         {
             EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            List<IRecipe> matching_recipes = CraftingHelper.getRecipesForRequestedOutput(message.parameters);
+            // Try crafting recipes first:
+            List<IRecipe> matching_recipes;
+            String[] split = message.parameters.split(" ");
+            matching_recipes = CraftingHelper.getRecipesForRequestedOutput(message.parameters, split.length > 1);
+
             for (IRecipe recipe : matching_recipes)
             {
                 if (CraftingHelper.attemptCrafting(player, recipe))
+                    return null;
+            }
+            // Now try furnace recipes:
+            ItemStack input = CraftingHelper.getSmeltingRecipeForRequestedOutput(message.parameters);
+            if (input != null)
+            {
+                if (CraftingHelper.attemptSmelting(player, input))
                     return null;
             }
             return null;
@@ -95,7 +107,7 @@ public class SimpleCraftCommandsImplementation extends CommandBase
     @Override
     public boolean parseParameters(Object params)
     {
-        if (params == null || !(params instanceof SimpleCraftCommands))
+        if (!(params instanceof SimpleCraftCommands))
             return false;
         
         SimpleCraftCommands cparams = (SimpleCraftCommands)params;
@@ -106,6 +118,7 @@ public class SimpleCraftCommandsImplementation extends CommandBase
     @Override
     public void install(MissionInit missionInit)
     {
+        CraftingHelper.reset();
     }
 
     @Override

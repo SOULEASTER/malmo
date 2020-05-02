@@ -24,7 +24,8 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.util.MovementInput;
 import net.minecraft.util.MovementInputFromOptions;
-import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.common.eventhandler.Event;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.Phase;
@@ -78,6 +79,21 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
         }
     }
     
+    public static class ResetPitchAndYawEvent extends Event
+    {
+        public final float pitch;
+        public final float yaw;
+        public final boolean setPitch;
+        public final boolean setYaw;
+        public ResetPitchAndYawEvent(boolean setYaw, float yaw, boolean setPitch, float pitch)
+        {
+            this.setYaw = setYaw;
+            this.yaw = yaw;
+            this.setPitch = setPitch;
+            this.pitch = pitch;
+        }
+    }
+
     public CommandForWheeledRobotNavigationImplementation()
     {
         init();
@@ -85,7 +101,7 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
 
     private void init()
     {
-    	EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
+    	EntityPlayerSP player = Minecraft.getMinecraft().player;
     	this.mVelocity = 0;
         this.mTargetVelocity = 0;
         this.mTicksSinceLastVelocityChange = 0;
@@ -177,6 +193,15 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
         mYaw += deltaYaw;
         mCameraPitch += deltaPitch;
         mCameraPitch = (mCameraPitch < -90) ? -90 : (mCameraPitch > 90 ? 90 : mCameraPitch);    // Clamp to [-90, 90]
+
+        // And update the player:
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
+        if (player != null)
+        {
+            player.rotationPitch = this.mCameraPitch;
+            player.rotationYaw = this.mYaw;
+        }
+
     }
     
     @Override
@@ -267,15 +292,18 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
         {
             if (this.isOverriding())
             {
-                EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
-                if (player != null)
-                {
-                    updateYawAndPitch();
-                    player.rotationPitch = this.mCameraPitch;
-                    player.rotationYaw = this.mYaw;
-                }
+                updateYawAndPitch();
             }
         }
+    }
+
+    @SubscribeEvent
+    public void onSetPitchOrYaw(CommandForWheeledRobotNavigationImplementation.ResetPitchAndYawEvent event)
+    {
+        if (event.setYaw)
+            this.mYaw = event.yaw;
+        if (event.setPitch)
+            this.mCameraPitch = event.pitch;
     }
 
     @Override
@@ -283,7 +311,7 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
     {
         // Create our movement hook, which allows us to override the Minecraft movement.
         this.overrideMovement = new MovementHook(Minecraft.getMinecraft().gameSettings);
-        EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player != null)
         {
             // Insert it into the player, keeping a record of the original movement object
@@ -291,21 +319,21 @@ public class CommandForWheeledRobotNavigationImplementation extends CommandBase
             this.originalMovement = player.movementInput;
             player.movementInput = this.overrideMovement;
         }
-        
-        FMLCommonHandler.instance().bus().register(this);
+
+        MinecraftForge.EVENT_BUS.register(this);
     }
 
     @Override
     public void deinstall(MissionInit missionInit)
     {
         // Restore the player's normal movement control:
-        EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player != null)
         {
             player.movementInput = this.originalMovement;
         }
         
-        FMLCommonHandler.instance().bus().unregister(this);
+        MinecraftForge.EVENT_BUS.unregister(this);
     }
     
     /** Provide access to the MovementInput object we are using to control the player.<br>
